@@ -15,8 +15,7 @@ export class Dragable {
   y = 0; // 鼠标按下时的y坐标
   matrix2D = null;
   constructor(el) {
-    if (!(el instanceof HTMLElement))
-      throw new Error("el must be a HTMLElement");
+    if (!(el instanceof HTMLElement)) throw new Error("el must be a HTMLElement");
     if (el.__drage__instance instanceof Dragable) return el.__drage__instance;
     this.el = el;
     this.__drage__instance = this;
@@ -26,8 +25,7 @@ export class Dragable {
     this.plugin.RenderManager = renderManager; //渲染优化器
     //元素是否已经插入到文档,插入成功进行初始化
     elementHadPaint(this.el, (el) => {
-      const { left, top, right, bottom, width, height } =
-        el.getBoundingClientRect();
+      const { left, top, right, bottom, width, height } = el.getBoundingClientRect();
       this.elRect = { left, top, right, bottom, width, height };
       this.__notifyInit();
     });
@@ -46,16 +44,13 @@ export class Dragable {
   __notifyInit() {
     this.__initialized__ = true;
     this.el.__drage__instance = this;
-    this.initializedCallbackList.forEach(
-      (fn) => typeof fn === "function" && fn(this),
-    );
+    this.initializedCallbackList.forEach((fn) => typeof fn === "function" && fn(this));
     this.initializedCallbackList = []; //清空
   }
   //元素transfrom或者transfromString转矩阵
   matrix(el) {
     let transformString = "";
-    if (!(el instanceof HTMLElement) && typeof el !== "string")
-      throw new Error("el must be a HTMLElement or a string");
+    if (!(el instanceof HTMLElement) && typeof el !== "string") throw new Error("el must be a HTMLElement or a string");
     if (typeof el === "string") {
       transformString = el;
     } else {
@@ -112,10 +107,7 @@ export class Dragable {
     if (e.button !== 0) return;
     this.beginDrag();
     debugger;
-    this.el.style.setProperty(
-      "z-index",
-      this.zIndex === null ? 999 : this.zIndex,
-    );
+    this.el.style.setProperty("z-index", this.zIndex === null ? 999 : this.zIndex);
     this.x = e.clientX;
     this.y = e.clientY;
     this.active = true;
@@ -144,9 +136,7 @@ export class Dragable {
     this.moveFnList.forEach((fn) => fn(this, state));
     //有渲染优化器
     if (this.plugin.RenderManager) {
-      this.plugin.RenderManager.render(() =>
-        this.change(state.moveX, state.moveY),
-      );
+      this.plugin.RenderManager.render(() => this.change(state.moveX, state.moveY));
     }
     //没有渲染优化器
     else {
@@ -165,8 +155,7 @@ export class Dragable {
     this.endDragFnList.forEach((fn) => fn(this));
   }
   closeDrag() {
-    typeof this.closeDragCallback === "function" &&
-      this.closeDragCallback(this);
+    typeof this.closeDragCallback === "function" && this.closeDragCallback(this);
   }
   addBeginDragFn(fn) {
     typeof fn === "function" && this.beginDragFnList.push(fn);
@@ -221,7 +210,7 @@ export class ShareDragable extends Dragable {
     }
     super(elList[0]);
     this.activeEl = null;
-    this.shareElList = new Set();
+    this.shareElSet = new Set();
 
     Array.from(elList).forEach((el) => {
       this.add(el);
@@ -233,28 +222,28 @@ export class ShareDragable extends Dragable {
     this.activeEl = this.el;
   }
   add(el) {
-    this.shareElList.add(el);
+    this.shareElSet.add(el);
     el.addEventListener("mousedown", this.mouseDownFn);
   }
   remove(el) {
-    this.shareElList.delete(el);
+    this.shareElSet.delete(el);
     this.removeListener(el);
     // 移除elementState
     delete this.el.__elementState__;
   }
   has(el) {
-    return this.shareElList.has(el);
+    return this.shareElSet.has(el);
   }
   clear() {
-    this.shareElList.forEach((el) => {
+    this.shareElSet.forEach((el) => {
       delete el.__elementState__;
     });
-    this.shareElList.clear();
+    this.shareElSet.clear();
   }
   destroy() {
     super.destroy();
     // 清空共享元素列表
-    this.shareElList.clear();
+    this.shareElSet.clear();
   }
   hold() {
     if (!this.activeEl.__elementState__) {
@@ -263,10 +252,8 @@ export class ShareDragable extends Dragable {
     this.activeEl.__elementState__.matrix2D = new DOMMatrix(this.matrix2D);
     this.activeEl.__elementState__.elRect = { ...this.elRect };
   }
-
-  mouseDownFn(e) {
-    const targetEl = e.currentTarget;
-    if (this.activeEl !== targetEl && this.shareElList.has(targetEl)) {
+  toggleState(targetEl) {
+    if (this.activeEl !== targetEl && this.shareElSet.has(targetEl)) {
       // 保持当前元素的elementState
       this.hold();
       this.activeEl = targetEl;
@@ -274,23 +261,28 @@ export class ShareDragable extends Dragable {
       this.el = this.activeEl;
       // 如果元素没有elementState，才创建elementState
       if (!this.el.__elementState__) {
-        const { left, top, right, bottom, width, height } =
-          this.el.getBoundingClientRect();
+        const { left, top, right, bottom, width, height } = this.el.getBoundingClientRect();
         const elRect = { left, top, right, bottom, width, height };
-        this.el.__elementState__ = createElementState(
-          this.matrix(this.el),
-          elRect,
-        );
+        this.el.__elementState__ = createElementState(this.matrix(this.el), elRect);
       }
       // 更换matrix2D和elRect
       this.matrix2D = new DOMMatrix(this.el.__elementState__.matrix2D);
       this.elRect = { ...this.el.__elementState__.elRect };
     }
-    // 调用父类的mouseDownFn
+  }
+  mouseDownFn(e) {
+    // 点击元素切换到该元素
+    this.select(e.currentTarget);
+    // 调用mouseDownFn
     super.mouseDownFn(e);
   }
   removeListener(el) {
     el.removeEventListener("mousedown", this.mouseDownFn);
+  }
+  //选中新的可拖动元素
+  select(targetEl) {
+    // 切换状态
+    this.toggleState(targetEl);
   }
 }
 

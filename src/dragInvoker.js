@@ -1,12 +1,5 @@
-import { Dragable } from "./drag.js";
-import {
-  canInclude,
-  isIncludeRect,
-  computedOffset,
-  isOverlap,
-  getCenterPositionOfRect,
-  VirtualRect,
-} from "./utils.js";
+import { Dragable, ShareDragable } from "./drag.js";
+import { canInclude, isIncludeRect, computedOffset, isOverlap, getCenterPositionOfRect, VirtualRect } from "./utils.js";
 
 /**
  * @description 可拖拽元素的调用器，原始父类
@@ -22,8 +15,7 @@ class DragableInvoker {
   }
   //添加初始化完成的可拖拽元素
   __add(drag) {
-    if (!(drag instanceof Dragable))
-      throw new Error("drag must be instanceof Dragable");
+    if (!(drag instanceof Dragable)) throw new Error("drag must be instanceof Dragable");
     if (this.dragList.includes(drag)) return; //不能重复添加
     this.dragList.push(drag);
     //添加限制
@@ -91,8 +83,7 @@ export class DragInvokerOfLimitInArea extends DragableInvoker {
   constructor(root) {
     super();
     this.areaEl = root;
-    const { left, top, bottom, right, width, height } =
-      this.areaEl.getBoundingClientRect();
+    const { left, top, bottom, right, width, height } = this.areaEl.getBoundingClientRect();
     this.rootRect = { left, top, bottom, right, width, height };
     this.border = {
       left: true,
@@ -112,26 +103,12 @@ export class DragInvokerOfLimitInArea extends DragableInvoker {
   }
   limit(drag) {
     const a = (_, state) => {
-      const {
-        left: Aleft,
-        top: Atop,
-        bottom: Abottom,
-        right: Aright,
-      } = this.rootRect;
-      const {
-        left: Dleft,
-        top: Dtop,
-        bottom: Dbottom,
-        right: Dright,
-      } = drag.elRect;
-      if (this.border.left && Aleft > Dleft + state.moveX)
-        state.moveX = Aleft - Dleft;
-      if (this.border.right && Aright < Dright + state.moveX)
-        state.moveX = Aright - Dright;
-      if (this.border.top && Atop > Dtop + state.moveY)
-        state.moveY = Atop - Dtop;
-      if (this.border.bottom && Abottom < Dbottom + state.moveY)
-        state.moveY = Abottom - Dbottom;
+      const { left: Aleft, top: Atop, bottom: Abottom, right: Aright } = this.rootRect;
+      const { left: Dleft, top: Dtop, bottom: Dbottom, right: Dright } = drag.elRect;
+      if (this.border.left && Aleft > Dleft + state.moveX) state.moveX = Aleft - Dleft;
+      if (this.border.right && Aright < Dright + state.moveX) state.moveX = Aright - Dright;
+      if (this.border.top && Atop > Dtop + state.moveY) state.moveY = Atop - Dtop;
+      if (this.border.bottom && Abottom < Dbottom + state.moveY) state.moveY = Abottom - Dbottom;
     };
 
     drag.addMoveFn(a);
@@ -149,8 +126,7 @@ export class DragInvokerOfLimitInArea extends DragableInvoker {
  * */
 export class DragInvokerOfExclusion extends DragableInvoker {
   constructor(drag1, drag2) {
-    if (drag1 === drag2)
-      throw new Error("drag1 and drag2 must be different dragable");
+    if (drag1 === drag2) throw new Error("drag1 and drag2 must be different dragable");
     if (!(drag1 instanceof Dragable) || !(drag2 instanceof Dragable)) {
       throw new Error("drag1 and drag2 must be dragable");
     }
@@ -173,19 +149,15 @@ export class DragInvokerOfExclusion extends DragableInvoker {
       //是否重叠
       if (isOverlap(...this.dragList.map((item) => item.elRect))) {
         //计算偏移量
-        const offset = computedOffset(
-          ...this.dragList.map((item) => item.elRect),
-        );
+        const offset = computedOffset(...this.dragList.map((item) => item.elRect));
         const x = this.dragList[0].elRect.width; //第一个元素的宽度
         this.dragList[1].forceChange(offset.left + x, offset.top);
       }
       this.rectMap.set(this.dragList[0], this.dragList[0].elRect);
       this.rectMap.set(this.dragList[1], this.dragList[1].elRect);
       //设置最小的length
-      this.minLengthOfX =
-        (this.dragList[0].elRect.width + this.dragList[1].elRect.width) / 2;
-      this.minLengthOfY =
-        (this.dragList[0].elRect.height + this.dragList[1].elRect.height) / 2;
+      this.minLengthOfX = (this.dragList[0].elRect.width + this.dragList[1].elRect.width) / 2;
+      this.minLengthOfY = (this.dragList[0].elRect.height + this.dragList[1].elRect.height) / 2;
     }
   }
   limit(drag) {
@@ -251,10 +223,7 @@ export class DragInvokerOfSnap extends DragableInvoker {
     const dy = thisCenter.top - hookCenter.top;
     const distance = Math.sqrt(dx * dx + dy * dy);
     if (distance !== 0 && distance < this._snapRadius) {
-      drag.forceChange(
-        hookCenter.left - thisCenter.left,
-        hookCenter.top - thisCenter.top,
-      );
+      drag.forceChange(hookCenter.left - thisCenter.left, hookCenter.top - thisCenter.top);
     }
   }
   limit(drag) {
@@ -339,5 +308,50 @@ export class DragInvokerOfLimitDirection extends DragableInvoker {
     return () => {
       drag.removeMoveFn(fn);
     };
+  }
+}
+
+export class DragInvokerOfMultiSelect extends DragableInvoker {
+  constructor() {
+    super();
+    this.selected = new Set();
+  }
+  select(drag) {
+    this.selected.add(drag);
+    super.add(drag);
+  }
+  unselect(drag) {
+    this.selected.delete(drag);
+    super.removeLimit(drag);
+  }
+  clearSelect() {
+    this.selected.clear();
+    super.removeAll();
+  }
+
+  limit(moveDrag) {
+    const fn = (_, state) => {
+      this.selected.forEach((dragInstance) => {
+        //单例模式
+        if (dragInstance instanceof ShareDragable) {
+          const elList=dragInstance.shareElList
+        } else {
+        }
+      });
+    };
+    mainDrag.addMoveFn(fn);
+    return () => mainDrag.removeMoveFn(fn);
+  }
+  add() {
+    throw new Error("Subclasses should not use this method any longer");
+  }
+  removeAll() {
+    throw new Error("Subclasses should not use this method any longer");
+  }
+  beforeAdd() {
+    throw new Error("Subclasses should not use this method any longer");
+  }
+  removeLimit() {
+    throw new Error("Subclasses should not use this method any longer");
   }
 }
