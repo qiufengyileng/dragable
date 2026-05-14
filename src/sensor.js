@@ -5,31 +5,36 @@ const EVENT_TYPE = {
     MOVE: "move",
     CLICK_DOWN: "clickDown",
     CLICK_UP: "clickUp",
-    DOUBLE_CLICK: "doubleClick",
+
 }
+const EVENT_TYPE_SET = new Set(Object.values(EVENT_TYPE));
 class Sensor {
-    constructor() {
+    constructor(target) {
+        this.target = target; //el元素
         this.eventType = EVENT_TYPE;
         this.eventBus = new Emitter();
     }
-    addSensorListener(target, eventType, listener) {
-        if (!this._isLegal(eventType)) return;
-        return this.eventBus.on(target, eventType, listener);
+    addSensorListener(eventType, listener) {
+        if (!this.isLegal(eventType)) return () => { }
+        console.log(this.constructor.name);
+        return this.eventBus.on(eventType, listener);
     }
-    addOnceSensorListener(target, eventType, listener) {
-        if (!this._isLegal(eventType)) return;
-        return this.eventBus.once(target, eventType, listener);
+    addOnceSensorListener(eventType, listener) {
+        if (!this.isLegal(eventType)) return () => { }
+        return this.eventBus.once(eventType, listener);
     }
-    removeSensorListener(target, eventType, listener) {
-        this.eventBus.remove(target, eventType, listener);
+    removeSensorListener(eventType, listener) {
+        this.eventBus.remove(eventType, listener);
     }
-    dispatchSensorEvent(target, eventType) {
-        this.eventBus.emit(target, eventType);
+    dispatchSensorEvent(eventType) {
+        this.eventBus.emit(eventType);
     }
-    _isLegal(eventType) {
-        return !!eventType && Object.values(this.eventType).includes(eventType);
+    isLegal(eventType) {
+        return !!eventType && EVENT_TYPE_SET.has(eventType);
     }
-
+    hasRegistry(type) {
+        return this.eventBus.hasRegistry(type);
+    }
 }
 
 /**
@@ -37,36 +42,55 @@ class Sensor {
  * */
 class PointerSensor extends Sensor {
     static POINTER_EVENT_MAP = {
-        [eventType.CLICK]: "click",
-        [eventType.MOVE]: "mousemove",
-        [eventType.CLICK_DOWN]: "mousedown",
-        [eventType.CLICK_UP]: "mouseup",
-        [eventType.DOUBLE_CLICK]: "dblclick",
-    }
-    constructor() {
-        super();
+        [EVENT_TYPE.CLICK]: "click",
+        [EVENT_TYPE.MOVE]: "mousemove",
+        [EVENT_TYPE.CLICK_DOWN]: "mousedown",
+        [EVENT_TYPE.CLICK_UP]: "mouseup",
 
     }
-    addSensorListener(target, eventType, listener) {
-        const removeListener = super.addSensorListener(target, eventType, listener);
-        const _removeListener = document.addEventListener(this.POINTER_EVENT_MAP[eventType], this.dispatchSensorEvent(target, eventType));
+    constructor(target) {
+        super(target);
+        this.OriginalEventBus = new Emitter();
+
+    }
+    addSensorListener(eventType, listener) {
+        debugger
+        this._addListener(eventType)
+        const removeListener = super.addSensorListener(eventType, listener);
+
         return () => {
             removeListener();
-            _removeListener();
         }
     }
-    addOnceSensorListener(target, eventType, listener) {
-        const removeListener = super.addOnceSensorListener(target, eventType, listener);
-        const _removeListener = document.addEventListener(this.POINTER_EVENT_MAP[eventType], this.dispatchSensorEvent(target, eventType));
+    addOnceSensorListener(eventType, listener) {
+        this._addListener(eventType)
+        const removeListener = super.addOnceSensorListener(eventType, listener);
+
         return () => {
             removeListener();
-            _removeListener();
         }
     }
-    removeSensorListener(target, eventType, listener) {
-        super.removeSensorListener(target, eventType, listener);
-        document.removeEventListener(this.POINTER_EVENT_MAP[eventType], this.dispatchSensorEvent(target, eventType));
+    removeSensorListener(eventType, listener) {
+        super.removeSensorListener(eventType, listener);
+        if (!this.hasRegistry(eventType)) {
+            this._removeListener(eventType)
+        }
     }
+
+    _addListener(eventType) {
+        if(!this.isLegal(eventType)) return;
+        const callback = () => this.dispatchSensorEvent(eventType);
+        if (!this.hasRegistry(eventType)) {
+            this.target.addEventListener(PointerSensor.POINTER_EVENT_MAP[eventType], callback)
+            this.OriginalEventBus.once(eventType, () => this.target.removeEventListener(PointerSensor.POINTER_EVENT_MAP[eventType], callback))
+        }
+    }
+    _removeListener(eventType) {
+        this.OriginalEventBus.emit(eventType)
+    }
+
+
+
 }
 
 
@@ -76,91 +100,104 @@ class PointerSensor extends Sensor {
  * */
 class TouchSensor extends Sensor {
     static TOUCH_EVENT_MAP = {
-        [eventType.MOVE]: "touchmove",
-        [eventType.CLICK_DOWN]: "touchstart",
-        [eventType.CLICK_UP]: "touchend",
-        [eventType.DOUBLE_CLICK]: "touchdblclick",
+        [EVENT_TYPE.MOVE]: "touchmove",
+        [EVENT_TYPE.CLICK_DOWN]: "touchstart",
+        [EVENT_TYPE.CLICK_UP]: "touchend",
     }
-    constructor() {
-        super();
+    constructor(target) {
+        super(target);
+        this.OriginalEventBus = new Emitter();
     }
 
-    addSensorListener(target, eventType, listener) {
-        const removeListener = super.addSensorListener(target, eventType, listener);
-        const _removeListener = document.addEventListener(this.TOUCH_EVENT_MAP[eventType], this.dispatchSensorEvent(target, eventType));
+    addSensorListener(eventType, listener) {
+        this._addListener(eventType)
+        const removeListener = super.addSensorListener(eventType, listener);
+
         return () => {
             removeListener();
-            _removeListener();
         }
     }
-    addOnceSensorListener(target, eventType, listener) {
-        const removeListener = super.addOnceSensorListener(target, eventType, listener);
-        const _removeListener = document.addEventListener(this.TOUCH_EVENT_MAP[eventType], this.dispatchSensorEvent(target, eventType));
+    addOnceSensorListener(eventType, listener) {
+        this._addListener(eventType)
+        const removeListener = super.addOnceSensorListener(eventType, listener);
+
         return () => {
             removeListener();
-            _removeListener();
+
         }
     }
-    removeSensorListener(target, eventType, listener) {
-        super.removeSensorListener(target, eventType, listener);
-        document.removeEventListener(this.TOUCH_EVENT_MAP[eventType], this.dispatchSensorEvent(target, eventType));
+
+    removeSensorListener(eventType, listener) {
+        super.removeSensorListener(eventType, listener);
+        if (!this.hasRegistry(eventType)) {
+            this._removeListener(eventType)
+        }
     }
+
+    _addListener(eventType) {
+        if(!this.isLegal(eventType)) return;
+        const callback = () => this.dispatchSensorEvent(eventType);
+        if (!this.hasRegistry(eventType)) {
+            this.target.addEventListener(TouchSensor.TOUCH_EVENT_MAP[eventType], callback)
+            this.OriginalEventBus.once(eventType, () => this.target.removeEventListener(TouchSensor.TOUCH_EVENT_MAP[eventType], callback))
+        }
+    }
+    _removeListener(eventType) {
+        this.OriginalEventBus.emit(eventType)
+    }
+
 }
 
 
 
 class Emitter {
     constructor() {
-        this.eventCallbackMap = new WeakMap();
+        this.registrySet = new Set();
+        this.eventCallbackMap = new Map();
     }
-    on(target, type, callback) {
+    on(type, callback) {
         if (typeof callback !== 'function') return () => { };
-        const callbackSet = this._createCallbackSet(target, type);
-        callbackSet.add(callback);
+        if (!this.hasRegistry(type)) this._registryEvent(type);
+        this.eventCallbackMap.get(type).add(callback);
         return () => {
-            this.remove(target, type, callback);
+            this.remove(type, callback);
         }
     }
-    emit(target, type) {
-        this._findCallbackSet(target, type)?.forEach(callback => callback(type));
+    emit(type) {
+        this.eventCallbackMap.get(type)?.forEach(callback => callback(type));
     }
-    once(target, type, callback) {
+    once(type, callback) {
         const _callback = () => {
             try {
                 callback(type);
             } finally {
-                this.remove(target, type, _callback);
+                this.remove(type, _callback);
             }
         }
-        return this.on(target, type, _callback);
+        return this.on(type, _callback);
 
     }
-    remove(target, type, callback) {
-        const callbackSet = this._findCallbackSet(target, type)
+    remove(type, callback) {
+        const callbackSet = this.eventCallbackMap.get(type);
         callbackSet?.delete(callback);
         if (callbackSet?.size === 0) {
-            this.eventCallbackMap?.get(target)?.delete(type);
+            this.registrySet.delete(type);
+            this.eventCallbackMap.delete(type);
         }
-        if (this.eventCallbackMap?.get(target)?.size === 0) {
-            this.eventCallbackMap?.delete(target);
-        }
-
     }
     reset() {
-        this.eventCallbackMap = new WeakMap();
+        this.eventCallbackMap = new Map();
+        this.registrySet = new Set();
+    }
+    _registryEvent(type) {
+        if (!this.hasRegistry(type)) {
+            this.registrySet.add(type);
+            this.eventCallbackMap.set(type, new Set());
+        }
+    }
+    hasRegistry(type) {
+        return this.registrySet.has(type);
     }
 
-    _findCallbackSet(target, type) {
-        if (!this.eventCallbackMap.has(target)) return;
-        const targetMap = this.eventCallbackMap.get(target);
-        if (!targetMap.has(type)) return;
-        return targetMap.get(type);
-    }
-    _createCallbackSet(target, type) {
-        if (!this.eventCallbackMap.has(target)) this.eventCallbackMap.set(target, new Map());
-        const targetMap = this.eventCallbackMap.get(target);
-        if (!targetMap.has(type)) targetMap.set(type, new Set());
-        return targetMap.get(type);
-    }
 
 }
